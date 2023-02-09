@@ -22,7 +22,6 @@ int main(void)
 void Initialize()
 {
 	TIMSK1 |= (1<<ICIE1);
-	PCICR |= (1<<PCIE2);
 	TCCR1B |= (1<<ICES1);
 	DDRB |= (1<<DDB5);
 	sei();
