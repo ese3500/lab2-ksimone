@@ -21,6 +21,7 @@ int main(void)
 
 void Initialize()
 {
+	cli();
 	TIMSK1 |= (1<<ICIE1);
 	TCCR1B |= (1<<ICES1);
 	DDRB |= (1<<DDB5);
