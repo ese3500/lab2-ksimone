@@ -6,7 +6,7 @@
  */ 
 
 #define F_CPU 16000000UL
-#define BAUD_RATE 62500
+#define BAUD_RATE 9600
 #define BAUD_PRESCALER (((F_CPU / (BAUD_RATE * 16UL))) - 1)
 
 /*--------------------Libraries---------------------------*/
@@ -18,11 +18,11 @@
 #include "inc/uart.h"
 
 /*--------------------Variables---------------------------*/
-char String[25];
-int pulse = 0; //to store the value of the last button press, ./-
-int spaced = 0; //to determine whether a letter has just been printed
-int sequence[5]; //to hold up to five dots/dashes at a time
-char letter; //to hold the value to be printed
+char String[25]; // for strings to be printed
+int pulse = 0; // to store the value of the last button press, ./-
+int spaced = 0; // to determine whether a letter has just been printed
+int sequence[5]; // to hold up to five dots/dashes at a time
+char letter; // to hold the value to be printed
 
 
 void Initialize();
@@ -32,29 +32,20 @@ int main(void)
 	Initialize();
     while (1) 
     {		
-		//testing timer
-		
-		//sprintf(String, "%u \n", TCNT1);
-		//UART_putstring(String);
-		
-		//if timer gets to 25000, record a space if necessary
-		if (spaced == 0) //if we have not yet printed the current letter being typed
+		if (TCNT1 == 10000)
 		{
-			//if timer gets to 25000
-			//record letter
-			
-			if (TCNT1 == 25000) // if we get to 400ms without a new button press
+			PORTB &= ~(1<<PORTB5);
+		}	
+		
+		// if timer gets to 65000, record the letter and a space
+		if (TCNT1 == 65000) // if we get to 400ms without a new button press
+		{		
+			if (spaced == 0) // if we have not yet printed the current letter being typed
 			{
-			
-				// print timer, should be 25000
-				sprintf(String, "%u \n", TCNT1);
-				UART_putstring(String);
-
-			
-				// start of morse code section, decoding whatever is stored in sequence
+				// start of morse code section, decoding whatever is stored in sequence[]
 				if (sequence[0] == 1)
 				{
-					letter = 'a'; // .
+					letter = 'e'; // .
 					if  (sequence[1] == 1)
 					{
 						letter = 'i'; // ..
@@ -206,23 +197,22 @@ int main(void)
 						}
 					}
 				}
-				//end of morse code section			
+				// end of morse code section			
 			
-			
-				//print the decoded letter and then a space
+				// print the decoded letter and then a space
 				sprintf(String, "%c \n", letter);
 				UART_putstring(String);
 			
-				spaced = 1; //don't print anything else until a new button press
+				spaced = 1; // don't print anything else until a new button press
 				
-				//clearing the sequence array
+				// clearing the sequence array
 				sequence[0] = 0;
 				sequence[1] = 0;
 				sequence[2] = 0;
 				sequence[3] = 0;
 				sequence[4] = 0;
 				
-				TCCR1B &= ~(1<<TCNT1); //clear the counter
+				TCCR1B &= ~(1<<TCNT1); // clear the counter
 			}
 		}
     }
@@ -234,18 +224,21 @@ void Initialize()
 	
 	UART_init(BAUD_PRESCALER);  // set up uart comms rate
 	
-	TIMSK1 |= (1<<ICIE1); // enable timer interrupts (check this)
-	PCICR |= (1<<PCIE2); // probably not necessary
+	TIMSK1 |= (1<<ICIE1); // input capture interrupt enable
 	DDRB |= (1<<DDB5); // set up pin 5 as input
 	TCCR1B |= (1<<ICES1); // Input Capture Edge Select = rising edge
-	TCCR1B |= (1<<ICF1);
+	TCCR1B |= (1<<ICF1); // clear input capture flag
 	
-	//may need to adjust the frequencies since they might be overflowing before they reach their maximum value
-	//CLKPR = (1 << CLKPCE); // Enable change to clock prescaler
-	//CLKPR = (1 << CLKPS3); // Divide by 256
+	// set up output led pins
+	DDRB |= (1<<DDB1);
+	DDRB |= (1<<DDB2);
 	
-	// set timer prescaler (just changed from 1024 to 256, check if this  worked
-	TCCR1B &= ~(1<<CS10); 
+	// may need to adjust the frequencies since they might be overflowing before they reach their maximum value
+	CLKPR = (1 << CLKPCE); // Enable change to clock prescaler
+	CLKPR = (1 << CLKPS0); // Divide by 2
+	
+	// set timer prescaler to 1024
+	TCCR1B |= (1<<CS10); 
 	TCCR1B &= ~(1<<CS11);
 	TCCR1B |= (1<<CS12);
 	
@@ -255,53 +248,46 @@ void Initialize()
 	TCCR1B &= ~(1<<WGM12);
 	TCCR1B &= ~(1<<WGM13);
 	
-	sei();
+	sei(); // enable global interrupts
 }
 
 ISR(TIMER1_CAPT_vect)
 {
-	
 	TIFR1 |= (1<<ICF1); // clear interrupt flag
-	
-	if (PINB & (1<<PINB0)) //check if this is rising edge (button press)
+
+	if (PINB & (1<<PINB0)) // code for rising edge (button press)
 	{
-		//turn on board LED on
-		PORTB |= (1<<PORTB5);
-		
-		//test serial monitor
-		//sprintf(String, "testing \n");
-		//UART_putstring(String);
-		
-		//set counter to 0
-		TCCR1B &= ~(1<<TCNT1);
-		
-		//test
-		//sprintf(String, "testing press %u \n", ICR1);
-		//UART_putstring(String);
-		
-		spaced = 0; //enable printing again
-		
+		PORTB |= (1<<PORTB5); // turn on board LED on
+		TCNT1 = 0; // set counter to 0
+		spaced = 0; // enable printing again
 	}
 	else // code for falling edge (button release)
 	{
-		//turn on board LED off
+		// turn on board LED off
 		PORTB &= ~(1<<PORTB5);
+		TCCR1B &= ~(1<<TCNT1);
 		
-		//record pulse
+		// record pulse
 		pulse = TCNT1;
 		
-		//test
-		//sprintf(String, "testing release %u \n", ICR1);
-		//UART_putstring(String);
-		
 		// set pulse to the correct value based on length of button press
-		if ((pulse > 1875) && (pulse < 12500))
-		{
+		if ((pulse>100) && (pulse < 10000))
+		{		
 			pulse = 1; // correlates to .
+					
+			// blink led1 (need to add physical circuit, uses pins 9 and 10)
+			PORTB |= (1<<PORTB1);
+			_delay_ms(50);
+			PORTB &= ~(1<<PORTB1);
 		}
-		if ((pulse > 12500) && (pulse < 25000))
+		else if ((pulse >= 10000) && (pulse < 50000))
 		{
 			pulse = 2; // correlates to -
+			
+			// blink led2
+			PORTB |= (1<<PORTB2);
+			_delay_ms(50);
+			PORTB &= ~(1<<PORTB2);
 		}
 		
 		// save pulse in sequence array
@@ -310,38 +296,24 @@ ISR(TIMER1_CAPT_vect)
 			if (sequence[0] == 0)
 			{
 				sequence[0] = pulse;
-				sprintf(String, "0 = %c \n", pulse);
-				UART_putstring(String);
 			}
 			else if (sequence[1] == 0)
 			{
 				sequence[1] = pulse;
-				sprintf(String, "0 = %c \n", pulse);
-				UART_putstring(String);
 			}
 			else if (sequence[2] == 0)
 			{
 				sequence[2] = pulse;
-				sprintf(String, "0 = %c \n", pulse);
-				UART_putstring(String);
 			}
 			else if (sequence[3] == 0)
 			{
 				sequence[3] = pulse;
-				sprintf(String, "0 = %c \n", pulse);
-				UART_putstring(String);
 			}
 			else if (sequence[4] == 0)
 			{
 				sequence[4] = pulse;
-				sprintf(String, "0 = %c \n", pulse);
-				UART_putstring(String);
 			}
 		}
-		
-		//clear the counter
-		TCCR1B &= ~(1<<TCNT1);
-				
 	}
-	TCCR1B ^= (1<<ICES1);
+	TCCR1B ^= (1<<ICES1); // toggle rising/falling edge capture mode
 }
